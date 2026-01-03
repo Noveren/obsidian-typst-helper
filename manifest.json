@@ -1,0 +1,9 @@
+{
+    "id": "typst-helper",
+    "name": "Typst helper",
+    "version": "0.0.1",
+    "description": "TODO",
+    "author": "noveren",
+    "authorUrl": "no-veren@qq.com",
+    "isDesktopOnly": true
+}
