@@ -6,7 +6,7 @@
 #show: university-theme.with(
   aspect-ratio: "16-9",
   config-info(
-    title: [Title],
+    title: [Title Typst],
     subtitle: [Subtitle],
     author: [Authors],
     date: datetime.today(),

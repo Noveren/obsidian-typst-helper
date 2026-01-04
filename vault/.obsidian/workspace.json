@@ -4,22 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "5e7444330bb1b7dd",
+        "id": "b6241b08edad77bc",
         "type": "tabs",
         "children": [
           {
-            "id": "7f1b5be8ab8a5af8",
+            "id": "6d53ab441ab6b057",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "Untitled.md",
-                "mode": "source",
-                "source": false,
-                "backlinks": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "Untitled"
+              "title": "New tab"
             }
           }
         ]
@@ -52,7 +47,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 224.5
   },
   "right": {
     "id": "317c0e3025d74b99",
@@ -65,14 +60,13 @@
   "left-ribbon": {
     "hiddenItems": {}
   },
-  "active": "7f1b5be8ab8a5af8",
+  "active": "3b9cd143b26f43c5",
   "lastOpenFiles": [
-    "main.typ",
+    "Untitled/main.pdf",
+    "Untitled/main.typ",
+    "Untitled.md",
     "Untitled",
     "Untitled 1.md",
-    "Untitled.md",
-    "main.pdf",
-    "Untitled/main.typ",
     "RED.md",
     "新建 Markdown File.md",
     "Welcome.md"

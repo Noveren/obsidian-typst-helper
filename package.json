@@ -1,5 +1,9 @@
 {
   "name": "obsidian-typst-helper",
+  "scripts": {
+    "dev": "OUTDIR=./vault/.obsidian/plugins/obsidian-typst-helper bun run build.ts",
+    "build": "bun run build.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "obsidian": "^1.11.0"
@@ -8,8 +12,5 @@
     "typescript": "^5"
   },
   "private": true,
-  "scripts": {
-    "build": "OUTPUT=./vault/.obsidian/plugins/obsidian-typst-helper && OUTPUT=$OUTPUT bun run build.ts && cp manifest.json $OUTPUT/manifest.json"
-  },
   "type": "module"
 }
