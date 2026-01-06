@@ -1,5 +1,5 @@
 import "../manifest.json";
-import { App, FileSystemAdapter, Notice, Platform, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, normalizePath } from "obsidian";
+import { App, FileSystemAdapter, Notice, Platform, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, TFolder, normalizePath } from "obsidian";
 import { exec as _exec, spawn } from "child_process";
 import { promisify } from "util";
 const exec = promisify(_exec);
@@ -50,6 +50,17 @@ export default class TypstHelper extends Plugin {
     override async onload(): Promise<void> {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<TypstHelperSettings>);
 
+        this.registerEvent(this.app.workspace.on("file-menu", (menu, folder) => {
+            if (folder instanceof TFolder) {
+                menu.addItem(item => {
+                    item.setTitle("typst: new note")
+                        .setIcon("popup-open")
+                        .onClick(async () => await this.createNewNote(folder));
+                });
+
+            }
+        }));
+
         this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
             if (file.name.endsWith(".typ")) {
                 menu.addItem(item => {
@@ -58,8 +69,8 @@ export default class TypstHelper extends Plugin {
                         .onClick(async () => await this.openWithEditor(file));
                 });
             }
-        })
-        );
+        }));
+
 
         this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
             if (file.name.endsWith(".typ")) {
@@ -70,8 +81,7 @@ export default class TypstHelper extends Plugin {
 
                 });
             }
-        })
-        );
+        }));
 
         this.registerDomEvent(document, "click", async (event) => {
             const path = getObsidianVaultFilePathWhenClick(event);
@@ -101,6 +111,18 @@ export default class TypstHelper extends Plugin {
         return path;
     }
 
+    private async createNewNote(folder: TFolder) {
+        let path = normalizePath(`${folder.path}/Untitled.typ`);
+        if (await this.app.vault.adapter.exists(path)) {
+            let i = 0;
+            do {
+                i += 1;
+                path = normalizePath(`${folder.path}/Untitled_${i}.typ`);
+            } while (await this.app.vault.adapter.exists(path));
+        }
+        await this.app.vault.adapter.write(path, "");
+    }
+
     private async openWithEditor(file: TAbstractFile) {
         const command = "code";
         if (await checkCommandExists(command)) {
@@ -126,11 +148,13 @@ export default class TypstHelper extends Plugin {
             return;
         }
         const path = this.getAbsolutePath((file));
-        console.log(`${typst} ${path}`);
+        const command = `${typst} c ${path}`;
+        console.log(command);
         try {
-            await exec(`${typst} c ${path}`);
+            await exec(command);
         } catch (err) {
-            new Notice(`${err} ${path}`);
+            console.error(err);
+            new Notice(`${err}`);
         }
     }
 };
