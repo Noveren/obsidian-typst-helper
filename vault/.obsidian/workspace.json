@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "d561da3455ebf0d6",
+        "id": "77e7d942d941b691",
         "type": "tabs",
         "children": [
           {
-            "id": "dd2173235f4e24e7",
+            "id": "58dd4c6b8277151a",
             "type": "leaf",
             "state": {
               "type": "pdf",
@@ -62,9 +62,10 @@
   "left-ribbon": {
     "hiddenItems": {}
   },
-  "active": "dd2173235f4e24e7",
+  "active": "58dd4c6b8277151a",
   "lastOpenFiles": [
     "main.pdf",
+    "Untitled.typ",
     "Untitled/main.pdf",
     "Untitled/Untitled.pdf",
     "Untitled/Untitled_1.pdf",
@@ -77,7 +78,6 @@
     "Untitled 3.md",
     "Untitled 2.md",
     "UntitledUntitled.typ",
-    "main.typ",
     "Untitled.md",
     "RED.md",
     "新建 Markdown File.md",
