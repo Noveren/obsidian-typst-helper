@@ -4,6 +4,24 @@ import { exec as _exec, spawn } from "child_process";
 import { promisify } from "util";
 const exec = promisify(_exec);
 
+const env: NodeJS.ProcessEnv = (() => {
+    if (Platform.isWin) {
+        return process.env;
+    }
+    if (Platform.isMacOS) {
+        return {
+            ...process.env,
+            PATH: [
+                "/Applications/Visual Studio Code.app/Contents/Resources/app/bin",
+                "/opt/homebrew/bin",
+                process.env.PATH ?? '',
+            ].join(":")
+        };
+    }
+    return process.env;
+})();
+
+
 const WhenClickedMap = {
     None: "None",
     PDF: "Open the associated pdf",
@@ -158,6 +176,7 @@ export default class TypstHelper extends Plugin {
                     }
                     if (need_to_compile) {
                         await this.compileWithTypst(file_typ);
+                        // FIXME: MacOS 上再编译后无法自动打开 PDF
                         file_pdf = this.app.vault.getFileByPath(path_pdf);
                     }
                     await this.app.workspace.getLeaf().openFile(file_pdf!);
@@ -200,19 +219,33 @@ export default class TypstHelper extends Plugin {
 
     private async openWithEditor(file: TAbstractFile) {
         const command = "code";
-        if (await checkCommandExists(command)) {
-            const path = this.getAbsolutePath((file.parent as TAbstractFile));
+        if (!await checkCommandExists(command)) {
+            new Notice(`${command}: command not found.`);
+            return;
+        }
+        const path = this.getAbsolutePath((file.parent as TAbstractFile));
+        try {
             const child_process = spawn(command, [path], {
                 stdio: "ignore",
                 detached: true,
                 shell: Platform.isWin,
+                env: env,
             });
-        } else {
-            new Notice(`${command}: command not found.`);
+        } catch (err) {
+            console.error(err);
+            new Notice("Failed to spawn the editor.");
+
         }
     }
 
     private async compileWithTypst(file: TAbstractFile) {
+        // try {
+        //     const { stdout, stderr } = await exec("echo $PATH");
+        //     console.log(`Success: ${stdout}`);
+        //     console.log(`Error: ${stderr}`);
+        // } catch (err) {
+        //     console.error(`Failed to execute 'echo $PATH' with error: '${err}'.`);
+        // }
         // TODO 支持多文件编译：自动搜索 main.typ 或 index.typ
         const typst = "typst";
         if (!await checkCommandExists(typst)) {
@@ -234,7 +267,7 @@ export default class TypstHelper extends Plugin {
         const command = `${typst} c ${typ} ${pdf}`;
         console.log(command);
         try {
-            await exec(command);
+            await exec(command, { env: env });
         } catch (err) {
             console.error(err);
             new Notice(`${err}`);
@@ -270,7 +303,11 @@ function getObsidianVaultFilePathWhenClick(event: Event): string | null {
     const target = event.target as HTMLElement;
     const item = target.closest('.nav-file');
     const path = item?.querySelector('.nav-file-title')?.getAttr("data-path");
-    return path ?? null;
+    if (path) {
+        return normalizePath(path);
+    } else {
+        return null;
+    }
 }
 
 async function checkCommandExists(command: string): Promise<boolean> {
@@ -279,8 +316,13 @@ async function checkCommandExists(command: string): Promise<boolean> {
             await exec(`where ${command}`);
             return true;
         }
-        if (Platform.isLinux || Platform.isMacOS) {
-            await exec(`which ${command}`);
+        if (Platform.isLinux) {
+            // await exec(`which ${command}`);
+            // return true;
+            throw Error("Error: Unsupport Platform Linux");
+        }
+        if (Platform.isMacOS) {
+            await exec(`which ${command}`, { env: env });
             return true;
         }
     } catch (err) {
