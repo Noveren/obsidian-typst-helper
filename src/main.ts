@@ -141,16 +141,18 @@ export default class TypstHelper extends Plugin {
         this.registerDomEvent(document, "click", async (event) => {
             const path = getObsidianVaultFilePathWhenClick(event);
             if (path === null) {
+                console.debug("Could not get obsidian vault file path from click event.");
                 return;
             }
             const file_typ = this.app.vault.getFileByPath(path);
             if (file_typ === null || !isTypstFile(file_typ, this.settings!.support_typ_md)) {
+                console.debug(`Could not get obsidian vault typst file by path '${path}'.`);
                 return;
             }
 
             event.preventDefault();
             event.stopImmediatePropagation();
-            const path_pdf = path.replace(".typ", ".pdf");
+            const path_pdf = path.replace(path.endsWith(".typ.md") ? ".typ.md" : ".typ", ".pdf");
             switch (this.settings?.when_clicked) {
             case "None": {
                 break;
