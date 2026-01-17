@@ -11,12 +11,15 @@
             "id": "dd2173235f4e24e7",
             "type": "leaf",
             "state": {
-              "type": "pdf",
+              "type": "markdown",
               "state": {
-                "file": "main.pdf"
+                "file": "demo.typ.md",
+                "mode": "source",
+                "source": false,
+                "backlinks": false
               },
-              "icon": "lucide-file-text",
-              "title": "main"
+              "icon": "lucide-file",
+              "title": "demo.typ"
             }
           }
         ]
@@ -62,9 +65,12 @@
   "left-ribbon": {
     "hiddenItems": {}
   },
-  "active": "dd2173235f4e24e7",
+  "active": "3b9cd143b26f43c5",
   "lastOpenFiles": [
+    "demo.pdf",
     "main.pdf",
+    "demo.typ.md",
+    "main.typ.pdf",
     "Untitled/main.pdf",
     "Untitled/Untitled.pdf",
     "Untitled/Untitled_1.pdf",
@@ -76,9 +82,6 @@
     "Untitled/Untitled 1.typ",
     "Untitled 3.md",
     "Untitled 2.md",
-    "UntitledUntitled.typ",
-    "main.typ",
-    "Untitled.md",
     "RED.md",
     "新建 Markdown File.md",
     "Welcome.md"

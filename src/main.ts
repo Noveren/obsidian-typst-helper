@@ -15,11 +15,13 @@ type WhenClickedValue = keyof typeof WhenClickedMap;
 interface TypstHelperSettings {
     typst_cli: string,
     when_clicked: WhenClickedValue;
+    support_typ_md: boolean;
 }
 
 const DEFAULT_SETTINGS: TypstHelperSettings = {
     typst_cli: "typst",
     when_clicked: "PDF",
+    support_typ_md: true,
 };
 
 export class TypstHelperSettingTab extends PluginSettingTab {
@@ -46,8 +48,21 @@ export class TypstHelperSettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
+            .setName("Support '.typ.md'")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings?.support_typ_md ?? true)
+                .onChange(async (value) => {
+                    console.log(value);
+                    if (this.plugin.settings) {
+                        this.plugin.settings.support_typ_md = value;
+                        await this.plugin.saveSettings();
+                    }
+                })
+            );
+
+        new Setting(containerEl)
             .setName("When clicked")
-            .setDesc("When you click '.typ'.")
+            .setDesc("When you click typst file.")
             .addDropdown(dropdown => dropdown
                 .addOptions(WhenClickedMap)
                 .setValue(this.plugin.settings?.when_clicked ?? "PDF")
@@ -84,7 +99,7 @@ export default class TypstHelper extends Plugin {
         }));
 
         this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
-            if (file.name.endsWith(".typ")) {
+            if (isTypstFile(file, this.settings!.support_typ_md)) {
                 menu.addItem(item => {
                     item.setTitle("typst: open with editor")
                         .setIcon("popup-open")
@@ -95,7 +110,7 @@ export default class TypstHelper extends Plugin {
 
 
         this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
-            if (file.name.endsWith(".typ")) {
+            if (isTypstFile(file, this.settings!.support_typ_md)) {
                 menu.addItem(item => {
                     item.setTitle("typst: compile")
                         .setIcon("popup-open")
@@ -107,51 +122,55 @@ export default class TypstHelper extends Plugin {
 
         this.registerDomEvent(document, "click", async (event) => {
             const path = getObsidianVaultFilePathWhenClick(event);
-            if (path && path.endsWith(".typ")) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                const file_typ = this.app.vault.getFileByPath(path)!;
-                const path_pdf = path.replace(".typ", ".pdf");
-                switch (this.settings?.when_clicked) {
-                case "None": {
-                    break;
-                }
-                case "PDF": {
-                    const file_pdf = this.app.vault.getFileByPath(path_pdf);
-                    if (file_pdf) {
-                        await this.app.workspace.getLeaf().openFile(file_pdf);
-                    } else {
-                        new Notice(`'${file_typ.basename}.pdf' does not exist.`);
-                    }
-                    break;
-                }
-                case "Compile": {
-                    try {
-                        let file_pdf = this.app.vault.getFileByPath(path_pdf);
-                        let need_to_compile = !file_pdf;
-                        if (!need_to_compile) {
-                            const ctime = file_pdf!.stat.ctime;
-                            const mtime = file_typ!.stat.mtime;
-                            console.log(`pdf c: ${ctime}; type m: ${mtime}`);
-                            need_to_compile = ctime < mtime;
-                        }
-                        if (need_to_compile) {
-                            await this.compileWithTypst(file_typ);
-                            file_pdf = this.app.vault.getFileByPath(path_pdf);
-                        }
-                        await this.app.workspace.getLeaf().openFile(file_pdf!);
-                    } catch (err) {
-                        console.error(err);
-                        new Notice(`Failed to compile '${file_typ}'.`);
-                    }
-                    break;
-                }
-                default: {
-                    console.error("this.settings.when_clicked is undefined");
-                    break;
-                }
-                }
+            if (path === null) {
+                return;
+            }
+            const file_typ = this.app.vault.getFileByPath(path);
+            if (file_typ === null || !isTypstFile(file_typ, this.settings!.support_typ_md)) {
+                return;
+            }
 
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            const path_pdf = path.replace(".typ", ".pdf");
+            switch (this.settings?.when_clicked) {
+            case "None": {
+                break;
+            }
+            case "PDF": {
+                const file_pdf = this.app.vault.getFileByPath(path_pdf);
+                if (file_pdf) {
+                    await this.app.workspace.getLeaf().openFile(file_pdf);
+                } else {
+                    new Notice(`'${file_typ.basename}.pdf' does not exist.`);
+                }
+                break;
+            }
+            case "Compile": {
+                try {
+                    let file_pdf = this.app.vault.getFileByPath(path_pdf);
+                    let need_to_compile = !file_pdf;
+                    if (!need_to_compile) {
+                        const ctime = file_pdf!.stat.ctime;
+                        const mtime = file_typ!.stat.mtime;
+                        console.log(`pdf c: ${ctime}; type m: ${mtime}`);
+                        need_to_compile = ctime < mtime;
+                    }
+                    if (need_to_compile) {
+                        await this.compileWithTypst(file_typ);
+                        file_pdf = this.app.vault.getFileByPath(path_pdf);
+                    }
+                    await this.app.workspace.getLeaf().openFile(file_pdf!);
+                } catch (err) {
+                    console.error(err);
+                    new Notice(`Failed to compile '${file_typ}'.`);
+                }
+                break;
+            }
+            default: {
+                console.error("this.settings.when_clicked is undefined");
+                break;
+            }
             }
         }, true);
 
@@ -200,12 +219,19 @@ export default class TypstHelper extends Plugin {
             new Notice(`${typst}: typst not found.`);
             return;
         }
-        if (!(file instanceof TFile)) {
-            new Notice(``);
+        if (!isTypstFile(file, this.settings!.support_typ_md)) {
+            new Notice(`'${file.name}' isn't typst file.`);
             return;
         }
-        const path = this.getAbsolutePath((file));
-        const command = `${typst} c ${path}`;
+        const parent_folder = file.parent;
+        if (file.parent === null) {
+            new Notice(`The parent of '${file.name}' is null.`);
+            return;
+        }
+        const root = this.getAbsolutePath(parent_folder!);
+        const typ = normalizePath(root + "/" + file.name);
+        const pdf = normalizePath(root + "/" + getTypstFileBasename(file, this.settings!.support_typ_md)! + ".pdf");
+        const command = `${typst} c ${typ} ${pdf}`;
         console.log(command);
         try {
             await exec(command);
@@ -215,6 +241,30 @@ export default class TypstHelper extends Plugin {
         }
     }
 };
+
+function isTypstFile(file: TAbstractFile, typ_md: boolean): boolean {
+    if (file instanceof TFile) {
+        if (file.extension == "typ") {
+            return true;
+        }
+        if (typ_md && (file.extension == "md" && file.basename.endsWith(".typ"))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function getTypstFileBasename(file: TAbstractFile, typ_md: boolean): string | null {
+    if (file instanceof TFile) {
+        if (file.extension == "typ") {
+            return file.basename;
+        }
+        if (typ_md && (file.extension == "md" && file.basename.endsWith(".typ"))) {
+            return file.basename.substring(0, file.basename.length - ".typ".length);
+        }
+    }
+    return null;
+}
 
 function getObsidianVaultFilePathWhenClick(event: Event): string | null {
     const target = event.target as HTMLElement;
