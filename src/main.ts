@@ -209,11 +209,17 @@ export default class TypstHelper extends Plugin {
 
     private async createNewNote(folder: TFolder) {
         let path = normalizePath(`${folder.path}/Untitled.typ`);
+        if (this.settings?.support_typ_md) {
+            path += ".md";
+        }
         if (await this.app.vault.adapter.exists(path)) {
             let i = 0;
             do {
                 i += 1;
                 path = normalizePath(`${folder.path}/Untitled_${i}.typ`);
+                if (this.settings?.support_typ_md) {
+                    path += ".md";
+                }
             } while (await this.app.vault.adapter.exists(path));
         }
         await this.app.vault.adapter.write(path, "");
