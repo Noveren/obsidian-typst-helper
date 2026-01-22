@@ -32,12 +32,14 @@ type WhenClickedValue = keyof typeof WhenClickedMap;
 
 interface TypstHelperSettings {
     typst_cli: string,
+    editor_cli: string | null,
     when_clicked: WhenClickedValue;
     support_typ_md: boolean;
 }
 
 const DEFAULT_SETTINGS: TypstHelperSettings = {
     typst_cli: "typst",
+    editor_cli: null,
     when_clicked: "PDF",
     support_typ_md: true,
 };
@@ -88,6 +90,33 @@ export class TypstHelperSettingTab extends PluginSettingTab {
                     console.log(value);
                     if (this.plugin.settings) {
                         this.plugin.settings.when_clicked = (value as WhenClickedValue);
+                        await this.plugin.saveSettings();
+                    }
+                })
+            );
+
+        new Setting(containerEl)
+            .setName("Editor CLI")
+            .setDesc("Expect assosiated command in PATH.")
+            .addDropdown(dropdown => dropdown
+                .addOptions({
+                    "null": "None",
+                    "code": "Visual Studio Code",
+                    "zed": "Zed",
+                })
+                .setValue(this.plugin.settings?.editor_cli ?? "null")
+                .onChange(async (value) => {
+                    console.log(value);
+                    if (this.plugin.settings) {
+                        if (value == "null") {
+                            this.plugin.settings.editor_cli = null;
+                        } else {
+                            this.plugin.settings.editor_cli = value;
+                            if (!await checkCommandExists(value)) {
+                                new Notice(`${value}: command not found.`);
+                                return;
+                            }
+                        }
                         await this.plugin.saveSettings();
                     }
                 })
@@ -226,7 +255,11 @@ export default class TypstHelper extends Plugin {
     }
 
     private async openWithEditor(file: TAbstractFile) {
-        const command = "code";
+        if (this.settings?.editor_cli === null) {
+            new Notice("No available editor and please select editor CLI in settings.");
+            return;
+        }
+        const command: string = this.settings?.editor_cli!;
         if (!await checkCommandExists(command)) {
             new Notice(`${command}: command not found.`);
             return;
