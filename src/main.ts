@@ -1,5 +1,5 @@
 import "../manifest.json";
-import { App, FileSystemAdapter, Notice, Platform, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, TFolder, normalizePath } from "obsidian";
+import { App, FileSystemAdapter, Notice, Platform, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, TFolder, ToggleComponent, normalizePath } from "obsidian";
 import { exec as _exec, spawn } from "child_process";
 import { promisify } from "util";
 const exec = promisify(_exec);
@@ -35,6 +35,8 @@ interface TypstHelperSettings {
     editor_cli: string | null,
     when_clicked: WhenClickedValue;
     support_typ_md: boolean;
+    hide_typ_pdf: boolean;
+    use_typ_pdf: boolean;
 }
 
 const DEFAULT_SETTINGS: TypstHelperSettings = {
@@ -42,10 +44,14 @@ const DEFAULT_SETTINGS: TypstHelperSettings = {
     editor_cli: null,
     when_clicked: "PDF",
     support_typ_md: true,
+    hide_typ_pdf: false,
+    use_typ_pdf: false,
 };
 
 export class TypstHelperSettingTab extends PluginSettingTab {
     plugin: TypstHelper;
+    hide_typ_pdf_toggle: ToggleComponent | undefined;
+    use_typ_pdf_toggle: ToggleComponent | undefined;
 
     constructor(app: App, plugin: TypstHelper) {
         super(app, plugin);
@@ -69,16 +75,63 @@ export class TypstHelperSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName("Support '.typ.md'")
+            .setDesc("Toggle On if you don't show all file types.")
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings?.support_typ_md ?? true)
                 .onChange(async (value) => {
-                    console.log(value);
+                    console.log(`Support '.typ.md': ${value}`);
                     if (this.plugin.settings) {
                         this.plugin.settings.support_typ_md = value;
                         await this.plugin.saveSettings();
                     }
+                    if (this.hide_typ_pdf_toggle) {
+                        if (!value) {
+                            this.hide_typ_pdf_toggle.setValue(false);
+                        }
+                        this.hide_typ_pdf_toggle.setDisabled(!value);
+                    }
+                    if (this.use_typ_pdf_toggle) {
+                        if (!value) {
+                            this.use_typ_pdf_toggle.setValue(false);
+                        }
+                        this.use_typ_pdf_toggle.setDisabled(!value);
+                    }
                 })
             );
+
+        new Setting(containerEl)
+            .setName("Hide '.typ.pdf'")
+            .setDesc("Hide '.typ.pdf' in navigator.")
+            .addToggle(toggle => {
+                this.hide_typ_pdf_toggle = toggle;
+                toggle
+                    .setDisabled(!(this.plugin.settings?.support_typ_md ?? false))
+                    .setValue(this.plugin.settings?.hide_typ_pdf ?? false)
+                    .onChange(async (value) => {
+                        console.log(`Hide '.typ.pdf': ${value}`);
+                        if (this.plugin.settings) {
+                            this.plugin.settings.hide_typ_pdf = value;
+                            await this.plugin.saveSettings();
+                        }
+                        this.plugin.injectStyle(value);
+                    });
+            });
+
+        new Setting(containerEl)
+            .setName("Use '.typ.pdf'")
+            .addToggle(toggle => {
+                this.use_typ_pdf_toggle = toggle;
+                toggle
+                    .setDisabled(!(this.plugin.settings?.support_typ_md ?? false))
+                    .setValue(this.plugin.settings?.use_typ_pdf ?? false)
+                    .onChange(async (value) => {
+                        console.log(`Use '.typ.pdf': ${value}`);
+                        if (this.plugin.settings) {
+                            this.plugin.settings.use_typ_pdf = value;
+                            await this.plugin.saveSettings();
+                        }
+                    });
+            });
 
         new Setting(containerEl)
             .setName("When clicked")
@@ -126,6 +179,7 @@ export class TypstHelperSettingTab extends PluginSettingTab {
 
 export default class TypstHelper extends Plugin {
     settings: TypstHelperSettings | undefined;
+    plugin_style: HTMLStyleElement | undefined;
 
     async saveSettings() {
         await this.saveData(this.settings);
@@ -134,6 +188,7 @@ export default class TypstHelper extends Plugin {
     override async onload(): Promise<void> {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<TypstHelperSettings>);
 
+        // 右键菜单：创建新笔记
         this.registerEvent(this.app.workspace.on("file-menu", (menu, folder) => {
             if (folder instanceof TFolder) {
                 menu.addItem(item => {
@@ -145,6 +200,7 @@ export default class TypstHelper extends Plugin {
             }
         }));
 
+        // 右键菜单：编辑器中打开
         this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
             if (isTypstFile(file, this.settings!.support_typ_md)) {
                 menu.addItem(item => {
@@ -155,7 +211,7 @@ export default class TypstHelper extends Plugin {
             }
         }));
 
-
+        // 右键菜单：编译指定笔记
         this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
             if (isTypstFile(file, this.settings!.support_typ_md)) {
                 menu.addItem(item => {
@@ -167,6 +223,7 @@ export default class TypstHelper extends Plugin {
             }
         }));
 
+        // 左键点击：打开对应的 PDF
         this.registerDomEvent(document, "click", async (event) => {
             const path = getObsidianVaultFilePathWhenClick(event);
             if (path === null) {
@@ -181,7 +238,12 @@ export default class TypstHelper extends Plugin {
 
             event.preventDefault();
             event.stopImmediatePropagation();
-            const path_pdf = path.replace(path.endsWith(".typ.md") ? ".typ.md" : ".typ", ".pdf");
+            let path_pdf: string = "";
+            if (this.settings?.support_typ_md && this.settings?.use_typ_pdf) {
+                path_pdf = path.replace(".md", ".pdf");
+            } else {
+                path_pdf = path.replace(path.endsWith(".typ.md") ? ".typ.md" : ".typ", ".pdf");
+            }
             switch (this.settings?.when_clicked) {
             case "None": {
                 break;
@@ -191,7 +253,8 @@ export default class TypstHelper extends Plugin {
                 if (file_pdf) {
                     await this.app.workspace.getLeaf().openFile(file_pdf);
                 } else {
-                    new Notice(`'${file_typ.basename}.pdf' does not exist.`);
+                    // new Notice(`'${file_typ.basename}.pdf' does not exist.`);
+                    new Notice(`'${path_pdf}' does not exist.`);
                 }
                 break;
             }
@@ -225,9 +288,28 @@ export default class TypstHelper extends Plugin {
         }, true);
 
         this.addSettingTab(new TypstHelperSettingTab(this.app, this));
+
     }
 
     override onunload(): void {
+        this.injectStyle(false);
+    }
+
+    public injectStyle(inject: boolean = true): void {
+        if (inject) {
+            this.plugin_style = document.createElement("style");
+            this.plugin_style.id = "typst-helper-style";
+            this.plugin_style.textContent = `
+                .nav-file-title[data-path$=".typ.pdf"] {
+                    display: none !important;
+                }
+            `;
+            document.head.appendChild(this.plugin_style);
+        } else {
+            if (this.plugin_style) {
+                this.plugin_style.remove();
+            }
+        }
     }
 
     private getAbsolutePath(file: TAbstractFile): string {
@@ -304,7 +386,8 @@ export default class TypstHelper extends Plugin {
         }
         const root = this.getAbsolutePath(parent_folder!);
         const typ = normalizePath(root + "/" + file.name);
-        const pdf = normalizePath(root + "/" + getTypstFileBasename(file, this.settings!.support_typ_md)! + ".pdf");
+        // const pdf = normalizePath(root + "/" + getTypstFileBasename(file, this.settings!.support_typ_md)! + ".pdf");
+        const pdf = normalizePath(root + "/" + getTypstFileBasename(file, !this.settings!.use_typ_pdf)! + ".pdf");
         const command = `${typst} c ${typ} ${pdf}`;
         console.log(command);
         try {
@@ -330,12 +413,13 @@ function isTypstFile(file: TAbstractFile, typ_md: boolean): boolean {
 
 function getTypstFileBasename(file: TAbstractFile, typ_md: boolean): string | null {
     if (file instanceof TFile) {
-        if (file.extension == "typ") {
-            return file.basename;
-        }
         if (typ_md && (file.extension == "md" && file.basename.endsWith(".typ"))) {
             return file.basename.substring(0, file.basename.length - ".typ".length);
         }
+        if (file.extension == "typ" || file.extension == "md") {
+            return file.basename;
+        }
+        console.warn(`File extension is ${file.extension}.`);
     }
     return null;
 }
