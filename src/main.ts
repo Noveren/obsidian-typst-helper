@@ -289,6 +289,9 @@ export default class TypstHelper extends Plugin {
 
         this.addSettingTab(new TypstHelperSettingTab(this.app, this));
 
+        if (this.settings.hide_typ_pdf) {
+            this.injectStyle();
+        }
     }
 
     override onunload(): void {
